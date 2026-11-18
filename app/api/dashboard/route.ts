@@ -113,12 +113,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Si el CSV de SAP Cloud ALM trae varias filas por el mismo caso (1 por paso),
-    // consolidamos por código de caso priorizando FAILED > BLOCKED > PASSED
-    const consolidatedMap = new Map<
-      string,
-      { executionStatus: string; evidenceNotes?: string }
-    >();
+    // Consolidamos usando un objeto plano en lugar de Map para evitar cualquier problema de iteración en TS
+    const consolidatedMap: Record<string, { executionStatus: string; evidenceNotes?: string }> = {};
 
     const statusPriority: Record<string, number> = {
       FAILED: 4,
@@ -132,23 +128,25 @@ export async function POST(request: Request) {
       if (!code) continue;
 
       const incomingStatus = String(raw.executionStatus || 'PENDING').toUpperCase();
-      const existing = consolidatedMap.get(code);
+      const existing = consolidatedMap[code];
 
       if (
         !existing ||
         (statusPriority[incomingStatus] || 0) >= (statusPriority[existing.executionStatus] || 0)
       ) {
-        consolidatedMap.set(code, {
+        consolidatedMap[code] = {
           executionStatus: incomingStatus,
           evidenceNotes: raw.evidenceNotes || existing?.evidenceNotes,
-        });
+        };
       }
     }
 
     let updatedCount = 0;
+    const entries = Object.entries(consolidatedMap);
     const updatePromises: Promise<void>[] = [];
 
-    consolidatedMap.forEach((data, code) => {
+    for (let i = 0; i < entries.length; i++) {
+      const [code, data] = entries[i];
       updatePromises.push(
         prisma.testPlanItem.updateMany({
           where: {
@@ -168,13 +166,13 @@ export async function POST(request: Request) {
           updatedCount += result.count;
         })
       );
-    });
+    }
 
     await Promise.all(updatePromises);
 
     return NextResponse.json({
       ok: true,
-      casesProcessed: consolidatedMap.size,
+      casesProcessed: entries.length,
       planItemsUpdated: updatedCount,
     });
   } catch (error) {
