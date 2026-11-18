@@ -147,25 +147,32 @@ export async function POST(request: Request) {
 
     let updatedCount = 0;
 
-    for (const [code, data] of consolidatedMap.entries()) {
-      const result = await prisma.testPlanItem.updateMany({
-        where: {
-          testCase: {
-            code: {
-              equals: code,
-              mode: 'insensitive',
+    // Reemplazo del bucle for..of por forEach para máxima compatibilidad en TypeScript (Render)
+    const updatePromises: Promise<void>[] = [];
+
+    consolidatedMap.forEach((data, code) => {
+      updatePromises.push(
+        prisma.testPlanItem.updateMany({
+          where: {
+            testCase: {
+              code: {
+                equals: code,
+                mode: 'insensitive',
+              },
             },
           },
-        },
-        data: {
-          executionStatus: data.executionStatus,
-          evidenceNotes: data.evidenceNotes || 'Sincronizado desde SAP Cloud ALM',
-          executedAt: data.executionStatus !== 'PENDING' ? new Date() : null,
-        },
-      });
+          data: {
+            executionStatus: data.executionStatus,
+            evidenceNotes: data.evidenceNotes || 'Sincronizado desde SAP Cloud ALM',
+            executedAt: data.executionStatus !== 'PENDING' ? new Date() : null,
+          },
+        }).then((result) => {
+          updatedCount += result.count;
+        })
+      );
+    });
 
-      updatedCount += result.count;
-    }
+    await Promise.all(updatePromises);
 
     return NextResponse.json({
       ok: true,
