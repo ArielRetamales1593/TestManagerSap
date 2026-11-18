@@ -160,7 +160,7 @@ export async function POST(request: Request) {
             },
           },
           data: {
-            executionStatus: data.executionStatus,
+            executionStatus: data.executionStatus as any,
             evidenceNotes: data.evidenceNotes || 'Sincronizado desde SAP Cloud ALM',
             executedAt: data.executionStatus !== 'PENDING' ? new Date() : null,
           },
