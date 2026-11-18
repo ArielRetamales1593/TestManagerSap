@@ -146,8 +146,6 @@ export async function POST(request: Request) {
     }
 
     let updatedCount = 0;
-
-    // Reemplazo del bucle for..of por forEach para máxima compatibilidad en TypeScript (Render)
     const updatePromises: Promise<void>[] = [];
 
     consolidatedMap.forEach((data, code) => {
