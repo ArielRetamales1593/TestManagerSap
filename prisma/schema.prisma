@@ -1,0 +1,117 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  QA_LEAD
+  KEY_USER
+  BUSINESS_ANALYST
+}
+
+enum GovernanceStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+}
+
+enum TestOrigin {
+  MANUAL
+  BULK
+  AI
+}
+
+enum ExecutionStatus {
+  PENDING
+  PASSED
+  FAILED
+  BLOCKED
+}
+
+// <-- NUEVO: Enum para clasificar la dificultad y estimar tiempos
+enum Complexity {
+  BAJA
+  MEDIA
+  ALTA
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(KEY_USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedExecutions TestPlanItem[]
+}
+
+model UserStory {
+  id                 String   @id @default(uuid())
+  sapCode            String   @unique
+  title              String
+  description        String   // Narrativa de la HU ("Como [rol] quiero...")
+  sapModule          String
+  sapTransaction     String?
+  acceptanceCriteria String?
+  riskLevel          String   @default("MEDIO")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  testCases TestCase[]
+}
+
+model TestCase {
+  id               String           @id @default(uuid())
+  code             String           @unique
+  userStoryId      String
+  userStory        UserStory        @relation(fields: [userStoryId], references: [id], onDelete: Cascade)
+  title            String
+  testType         String           @default("POSITIVA")
+  origin           TestOrigin       @default(MANUAL)
+  preconditions    String?
+  steps            String
+  expectedResult   String
+  governanceStatus GovernanceStatus @default(DRAFT)
+  rejectionReason  String?
+  
+  // <-- NUEVO: Campo de complejidad con valor por defecto
+  complexity       Complexity       @default(MEDIA)
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  planItems TestPlanItem[]
+}
+
+model TestPlan {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  cycleName   String   @default("Sprint 1")
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items TestPlanItem[]
+}
+
+model TestPlanItem {
+  id              String          @id @default(uuid())
+  testPlanId      String
+  testPlan        TestPlan        @relation(fields: [testPlanId], references: [id], onDelete: Cascade)
+  testCaseId      String
+  testCase        TestCase        @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  assignedToId    String
+  assignedTo      User            @relation(fields: [assignedToId], references: [id])
+  executionStatus ExecutionStatus @default(PENDING)
+  evidenceNotes   String?
+  evidenceUrl     String?         // <-- CAMBIO: Agregamos esto para la captura de pantalla
+  executedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
